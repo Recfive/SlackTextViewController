@@ -478,6 +478,14 @@ NS_CLASS_AVAILABLE_IOS(7_0) @interface SLKTextViewController : UIViewController 
 - (void)showAutoCompletionView:(BOOL)show;
 
 /**
+ Same as showAutoCompletionView: but also will make sure that the given rect isn't
+ covered by the subsequently displayed view.
+ 
+ @param show YES if the autocompletion view should be shown.
+ */
+- (void)showAutoCompletionView:(BOOL)show forRectInScrollViewContainer:(CGRect)rect;
+
+/**
  Use this method to programatically show the autocompletion view, with provided prefix and word to search.
  Right before the view is shown, -reloadData is called. So avoid calling it manually.
  

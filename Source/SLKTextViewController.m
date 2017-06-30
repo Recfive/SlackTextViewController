@@ -549,8 +549,6 @@ CGFloat const SLKAutoCompletionViewDefaultHeight = 140.0;
     }
     
     _autoCompleting = autoCompleting;
-    
-    self.scrollViewProxy.scrollEnabled = !autoCompleting;
 }
 
 - (void)setInverted:(BOOL)inverted
@@ -1108,6 +1106,10 @@ CGFloat const SLKAutoCompletionViewDefaultHeight = 140.0;
 {
     if (!self.isPresentedInPopover && ![self ignoreTextInputbarAdjustment]) {
         [self dismissKeyboard:YES];
+        if (self.autoCompleting)
+        {
+            [self showAutoCompletionView:NO];
+        }
     }
 }
 
@@ -1261,7 +1263,7 @@ CGFloat const SLKAutoCompletionViewDefaultHeight = 140.0;
     // scrollView correctly to its top edge.
     if (self.inverted) {
         contentInset.bottom = [self slk_topBarsHeight];
-        contentInset.top = contentInset.bottom > 0.0 ? 0.0 : contentInset.top;
+        contentInset.top = (contentInset.bottom > 0.0 ? 0.0 : contentInset.top) + self.autoCompletionViewHC.constant;
     }
     else {
         contentInset.bottom = 0.0;
@@ -1653,6 +1655,11 @@ CGFloat const SLKAutoCompletionViewDefaultHeight = 140.0;
 
 - (void)showAutoCompletionView:(BOOL)show
 {
+    [self showAutoCompletionView:show forRectInScrollViewContainer:CGRectMake(CGFLOAT_MAX, CGFLOAT_MAX, CGFLOAT_MAX, CGFLOAT_MAX)];
+}
+
+- (void)showAutoCompletionView:(BOOL)show forRectInScrollViewContainer:(CGRect)rect
+{
     // Reloads the tableview before showing/hiding
     if (show) {
         [_autoCompletionView reloadData];
@@ -1664,6 +1671,7 @@ CGFloat const SLKAutoCompletionViewDefaultHeight = 140.0;
     [self slk_enableTypingSuggestionIfNeeded];
     
     CGFloat viewHeight = show ? [self heightForAutoCompletionView] : 0.0;
+    CGFloat heightDifference = [self heightForAutoCompletionView] - self.autoCompletionViewHC.constant;
     
     if (self.autoCompletionViewHC.constant == viewHeight) {
         return;
@@ -1684,10 +1692,22 @@ CGFloat const SLKAutoCompletionViewDefaultHeight = 140.0;
     }
     
     self.autoCompletionViewHC.constant = viewHeight;
+
+    CGPoint contentOffset = self.scrollViewProxy.contentOffset;
+    if (show && !CGRectEqualToRect(rect, CGRectMake(CGFLOAT_MAX, CGFLOAT_MAX, CGFLOAT_MAX, CGFLOAT_MAX)))
+    {
+        contentOffset.y -= MAX((heightDifference > 0 ? 1 : -1) * (MAX(0.f, (heightDifference > 0 ? 1 : -1) * ([self heightForAutoCompletionView] + 2.5f - (rect.origin.y - contentOffset.y)))), - ([self heightForAutoCompletionView] + 2.5f));
+    }
+    else if (contentOffset.y < 0)
+    {
+        contentOffset.y = 0;
+    }
     
     [self.view slk_animateLayoutIfNeededWithBounce:self.bounces
                                            options:UIViewAnimationOptionCurveEaseInOut|UIViewAnimationOptionLayoutSubviews|UIViewAnimationOptionBeginFromCurrentState|UIViewAnimationOptionAllowUserInteraction
-                                        animations:NULL];
+                                        animations:^{
+                                            self.scrollViewProxy.contentOffset = contentOffset;
+                                        }];
 }
 
 - (void)showAutoCompletionViewWithPrefix:(NSString *)prefix andWord:(NSString *)word prefixRange:(NSRange)prefixRange
@@ -2193,7 +2213,7 @@ CGFloat const SLKAutoCompletionViewDefaultHeight = 140.0;
 - (BOOL)gestureRecognizerShouldBegin:(UIGestureRecognizer *)gesture
 {
     if ([gesture isEqual:self.singleTapGesture]) {
-        return [self.textView isFirstResponder] && ![self ignoreTextInputbarAdjustment];
+        return ([self.textView isFirstResponder] && ![self ignoreTextInputbarAdjustment]) || self.autoCompleting;
     }
     else if ([gesture isEqual:self.verticalPanGesture]) {
         return self.keyboardPanningEnabled && ![self ignoreTextInputbarAdjustment];
